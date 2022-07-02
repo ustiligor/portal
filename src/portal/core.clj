@@ -1,4 +1,22 @@
-(ns portal.core)
+(ns portal.core
+  (:require
+   [clojure.string :as string]))
+
+(defn default-action
+  [state choice]
+  (cond
+    (= choice "die")
+    (assoc state :dead true)
+
+    (#{"inventory" "I" "i" "inv"} choice)
+    (do
+      (println "your inventory is:" (string/join ", " (map name (keys (get state :inventory)))))
+      state)
+
+    :else
+    (do 
+      (println choice "is not a valid choice")
+      state)))
 
 (def example-game
   {:places
@@ -24,6 +42,11 @@
     {:description
      (fn [state]
        ["the room is red"])
+     :default
+     (fn [state choice]
+       (if (= choice "return")
+         (assoc state :place :starting)
+         (default-action state choice)))
      :choices
      (fn [state])}
 
@@ -43,29 +66,38 @@
 
 (defn new-game
   []
-  {:place :starting})
+  {:place :starting :inventory {:eyeball {}}})
 
 (defn make-choice
   [game state]
-  (println game)
-  (println state)
   (let [place-key (get state :place)
         place (get-in game [:places place-key])
         choices ((get place :choices) state)]
     (doseq [line ((get place :description) state)]
       (println line))
-    (println "your choices are:" (keys choices))
+    (println "your choices are:" (string/join ", " (map name (keys choices))))
     (let [choice (read-line)
           action (get choices (keyword choice))]
-      (action state))))
+      (if action
+        (action state)
+        (if-let [default (get place :default)]
+          (default state choice)
+          (default-action state choice))))))
 
 (defn game-engine
   [game state]
   (loop [state state]
     (let [state (make-choice game state)]
-      (if (get state :place)
+      (cond
+        (get state :dead)
+        (do
+          (println "you are dead")
+          state)
+        
+        (get state :place)
         (recur state)
-        state))))
+
+        :else state))))
 
 (defn intro
   [state]
