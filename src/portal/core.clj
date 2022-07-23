@@ -13,13 +13,21 @@
       (println "your inventory is:" (string/join ", " (map name (keys (get state :inventory)))))
       state)
 
+    (#{"look" "l" "L"} choice)
+    (dissoc state :previous-place)
+
     :else
     (do 
       (println choice "is not a valid choice")
       state)))
 
 (def example-game
-  {:places
+  {:initial-state
+   (fn [state]
+     {:place :starting
+      :inventory {:eyeball {}}
+      :place-state {}})
+   :places
    {:starting
     {:description 
      (fn [state]
@@ -41,14 +49,43 @@
     :red
     {:description
      (fn [state]
-       ["the room is red"])
+       ["the room is red."
+        (if (get-in state [:place-state :red :heart :squished])
+          "There is a heart squished on a pedestal here"
+          "There is a beating heart on a pedestal.")
+        "There is a foggy glass case"])
      :default
      (fn [state choice]
        (if (= choice "return")
          (assoc state :place :starting)
          (default-action state choice)))
      :choices
-     (fn [state])}
+     (fn [state]
+       (let [choices 
+             {:case
+              (fn [state]
+                (println "the case is foggy, but you can see it can be lifted")
+                (assoc-in state [:place-state :red :case :looked] true))
+              :heart
+              (fn [state]
+                (println "the heart is huge and grotesque and pumping obscenely")
+                (assoc-in state [:place-state :red :heart :looked] true))}]
+         (reduce
+          (fn [choices state-check]
+            (state-check choices))
+          choices
+          [(fn [choices]
+             (if (get-in state [:place-state :red :case :looked])
+               (assoc choices :lift (fn [state]
+                                      (println "you lift the case and release poison gas")
+                                      (assoc state :dead true)))
+               choices))
+           (fn [choices]
+             (if (get-in state [:place-state :red :heart :looked])
+               (assoc choices :squish (fn [state]
+                                        (println "you squish the disgusting heart and it splatters all over")
+                                        (assoc-in state [:place-state :red :heart :squished] true)))
+               choices))])))}
 
     :green
     {:description
@@ -66,15 +103,18 @@
 
 (defn new-game
   []
-  {:place :starting :inventory {:eyeball {}}})
+)
 
 (defn make-choice
   [game state]
   (let [place-key (get state :place)
+        previous-place (get state :previous-place)
+        state (assoc state :previous-place place-key)
         place (get-in game [:places place-key])
         choices ((get place :choices) state)]
-    (doseq [line ((get place :description) state)]
-      (println line))
+    (if (not= place-key previous-place)
+      (doseq [line ((get place :description) state)]
+        (println line)))
     (println "your choices are:" (string/join ", " (map name (keys choices))))
     (let [choice (read-line)
           action (get choices (keyword choice))]
@@ -116,6 +156,7 @@
 
 (defn -main
   []
-  (let [state (new-game)
+  (let [game example-game
+        state ((get game :initial-state) {})
         state (intro state)]
-    (println (game-engine example-game state))))
+    (println (game-engine game state))))
