@@ -68,8 +68,14 @@
                 (assoc-in state [:place-state :red :case :looked] true))
               :heart
               (fn [state]
-                (println "the heart is huge and grotesque and pumping obscenely")
-                (assoc-in state [:place-state :red :heart :looked] true))}]
+                (if (get-in state [:place-state :red :heart :squished])
+                  (do
+                    (println "the once beating heart is brutally squished")
+                    (println "you see something glinting in the mush")
+                    (assoc-in state [:place-state :red :heart :glint] true))
+                  (do
+                    (println "the heart is huge and grotesque and pumping obscenely")
+                    (assoc-in state [:place-state :red :heart :looked] true))))}]
          (reduce
           (fn [choices state-check]
             (state-check choices))
@@ -81,7 +87,9 @@
                                       (assoc state :dead true)))
                choices))
            (fn [choices]
-             (if (get-in state [:place-state :red :heart :looked])
+             (if (and
+                  (get-in state [:place-state :red :heart :looked])
+                  (not (get-in state [:place-state :red :heart :squished])))
                (assoc choices :squish (fn [state]
                                         (println "you squish the disgusting heart and it splatters all over")
                                         (assoc-in state [:place-state :red :heart :squished] true)))
@@ -125,19 +133,19 @@
           (default-action state choice))))))
 
 (defn game-engine
-  [game state]
-  (loop [state state]
-    (let [state (make-choice game state)]
+  [game initial-state]
+  (loop [state initial-state]
+    (let [new-state (make-choice game state)]
       (cond
-        (get state :dead)
+        (get new-state :dead)
         (do
           (println "you are dead")
-          state)
+          new-state)
         
-        (get state :place)
-        (recur state)
+        (get new-state :place)
+        (recur new-state)
 
-        :else state))))
+        :else new-state))))
 
 (defn intro
   [state]
