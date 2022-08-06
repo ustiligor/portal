@@ -61,39 +61,58 @@
          (default-action state choice)))
      :choices
      (fn [state]
-       (let [choices 
-             {:case
-              (fn [state]
-                (println "the case is foggy, but you can see it can be lifted")
-                (assoc-in state [:place-state :red :case :looked] true))
-              :heart
-              (fn [state]
-                (if (get-in state [:place-state :red :heart :squished])
-                  (do
-                    (println "the once beating heart is brutally squished")
-                    (println "you see something glinting in the mush")
-                    (assoc-in state [:place-state :red :heart :glint] true))
-                  (do
-                    (println "the heart is huge and grotesque and pumping obscenely")
-                    (assoc-in state [:place-state :red :heart :looked] true))))}]
-         (reduce
-          (fn [choices state-check]
-            (state-check choices))
-          choices
-          [(fn [choices]
-             (if (get-in state [:place-state :red :case :looked])
-               (assoc choices :lift (fn [state]
-                                      (println "you lift the case and release poison gas")
-                                      (assoc state :dead true)))
-               choices))
-           (fn [choices]
-             (if (and
-                  (get-in state [:place-state :red :heart :looked])
-                  (not (get-in state [:place-state :red :heart :squished])))
-               (assoc choices :squish (fn [state]
-                                        (println "you squish the disgusting heart and it splatters all over")
-                                        (assoc-in state [:place-state :red :heart :squished] true)))
-               choices))])))}
+       {:case
+        (fn [state]
+          (println "the case is foggy, but you can see it can be lifted")
+          (assoc-in state [:place-state :red :case :looked] true))
+        :heart
+        (fn [state]
+          (if (get-in state [:place-state :red :heart :squished])
+            (do
+              (println "the once beating heart is brutally squished")
+              (println "you see something glinting in the mush")
+              (assoc-in state [:place-state :red :heart :glint] true))
+            (do
+              (println "the heart is huge and grotesque and pumping obscenely")
+              (assoc-in state [:place-state :red :heart :looked] true))))
+        :lift
+        {:condition
+         (fn [state]
+           (get-in state [:place-state :red :case :looked]))
+         :action
+         (fn [state]
+           (println "you lift the case and release poison gas")
+           (assoc state :dead true))}
+        :squish
+        {:condition
+         (fn [state]
+           (and
+            (get-in state [:place-state :red :heart :looked])
+            (not (get-in state [:place-state :red :heart :squished]))))
+         :action
+         (fn [state]
+           (println "you squish the disgusting heart and it splatters all over")
+           (assoc-in state [:place-state :red :heart :squished] true))}})}
+       ;; (let [choices 
+       ;;       ]
+       ;;   (reduce
+       ;;    (fn [choices state-check]
+       ;;      (state-check choices))
+       ;;    choices
+       ;;    [(fn [choices]
+       ;;       (if (get-in state [:place-state :red :case :looked])
+       ;;         (assoc choices :lift (fn [state]
+       ;;                                (println "you lift the case and release poison gas")
+       ;;                                (assoc state :dead true)))
+       ;;         choices))
+       ;;     (fn [choices]
+       ;;       (if (and
+       ;;            (get-in state [:place-state :red :heart :looked])
+       ;;            (not (get-in state [:place-state :red :heart :squished])))
+       ;;         (assoc choices :squish (fn [state]
+       ;;                                  (println "you squish the disgusting heart and it splatters all over")
+       ;;                                  (assoc-in state [:place-state :red :heart :squished] true)))
+       ;;         choices))])))}
 
     :green
     {:description
@@ -119,7 +138,21 @@
         previous-place (get state :previous-place)
         state (assoc state :previous-place place-key)
         place (get-in game [:places place-key])
-        choices ((get place :choices) state)]
+        all-choices ((get place :choices) state)
+        choices
+        (into
+         {}
+         (map
+          (fn [[choice action]]
+            (if (function? action)
+              [choice action]
+              [choice (get action :action)]))
+          (filter
+           (fn [[choice action]]
+             (if (function? action)
+               [choice action]
+               ((get action :condition) state)))
+           all-choices )))]
     (if (not= place-key previous-place)
       (doseq [line ((get place :description) state)]
         (println line)))
