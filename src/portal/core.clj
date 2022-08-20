@@ -1,9 +1,23 @@
 (ns portal.core
   (:require
+   [clojure.spec.alpha :as s]
    [clojure.string :as string]))
+
+(s/def :portal/choice string?)
+(s/def :portal/state
+  (s/keys :req-un [:portal/place
+                   :portal/place-state
+                   :portal/inventory
+                   :portal/name]
+          :opt-un [:portal/previous-place
+                   :portal/dead]))
 
 (defn default-action
   [state choice]
+  {:pre [(s/valid? :portal/state state)
+         (s/valid? :portal/choice choice)]
+   :post [(fn [x] (s/valid? :portal/state x))]}
+  
   (cond
     (= choice "die")
     (assoc state :dead true)
