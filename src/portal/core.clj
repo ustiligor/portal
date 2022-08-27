@@ -3,7 +3,29 @@
    [clojure.spec.alpha :as s]
    [clojure.string :as string]))
 
+(s/def :portal/game
+  (s/keys :req-un [:portal/initial-state
+                   :portal/places]))
+(s/def :portal/places
+  (s/every-kv keyword? :portal/place-map))
+(s/def :portal/place-map
+  (s/keys :req-un [:portal/description
+                   :portal/choices]))
+(s/def :portal/initial-state fn?)
+(s/def :portal/inventory map?)
+(s/def :portal/previous-place keyword?)
+(s/def :portal/place keyword?)
+(s/def :portal/name string?)
 (s/def :portal/choice string?)
+(s/def :portal/player-choices
+  (s/every-kv keyword? fn?))
+(s/def :portal/choices
+  (s/every-kv keyword? :portal/choice-map))
+(s/def :portal/choice-map
+  (s/keys :req-un [:portal/action]
+          :opt-un [:portal/condition]))
+(s/def :portal/action fn?)
+(s/def :portal/condition fn?)
 (s/def :portal/state
   (s/keys :req-un [:portal/place
                    :portal/place-state
@@ -17,7 +39,7 @@
   {:pre [(s/valid? :portal/state state)
          (s/valid? :portal/choice choice)]
    :post [(fn [x] (s/valid? :portal/state x))]}
-  
+
   (cond
     (= choice "die")
     (assoc state :dead true)
@@ -125,18 +147,20 @@
      :choices
      {}}}})
 
-(defn new-game
-  []
-)
-
 (defn player-choices
+  "given all possible choices, determine which choices are available,
+   given the state."
   [choices state]
+  {:pre [(s/valid? :portal/choices choices)
+         (s/valid? :portal/state state)]
+   :post [(fn [x] (s/valid? :portal/player-choices x))]}
   (let [passing
         (filter
          (fn [[choice action]]
            (let [condition (get action :condition)]
              (or (nil? condition)
                  (condition state))))
+         
          choices)
         actions
         (map
@@ -147,6 +171,9 @@
 
 (defn make-choice
   [game state]
+  {:pre [(s/valid? :portal/game game)
+         (s/valid? :portal/state state)]
+   :post [(fn [x] (s/valid? :portal/state x))]}
   (let [place-key (get state :place)
         previous-place (get state :previous-place)
         state (assoc state :previous-place place-key)
