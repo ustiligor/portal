@@ -44,22 +44,48 @@
          (s/valid? :portal/choice choice)]
    :post [(fn [x] (s/valid? :portal/state x))]}
 
-  (cond
-    (= choice "die")
-    (assoc state :dead true)
+  (let [tokens (string/split choice #" +")
+        command (first tokens)
+        arguments (rest tokens)
+        place-key (get state :place)]
+    (cond
+      (= command "die")
+      (assoc state :dead true)
 
-    (#{"inventory" "I" "i" "inv"} choice)
-    (do
-      (println "your inventory is:" (string/join ", " (map name (keys (get state :inventory)))))
-      state)
+      (#{"inventory" "I" "i" "inv"} command)
+      (do
+        (println "your inventory is:" (string/join ", " (map name (keys (get state :inventory)))))
+        state)
 
-    (#{"look" "l" "L"} choice)
-    (dissoc state :previous-place)
+      (#{"look" "l" "L"} command)
+      (dissoc state :previous-place)
+      
+      (#{"drop" "D" "d"} command)
+      (let [item-key (keyword (first arguments))
+            item (get-in state [:inventory item-key])]
+        (if (not item)
+          (do
+            (println "you don't have" (name item-key))
+            state)
+          (let [state (update state :inventory dissoc item-key)]
+            (println "you dropped" (name item-key))
+            (assoc-in state [:place-state place-key :items item-key] item))))
 
-    :else
-    (do 
-      (println choice "is not a valid choice")
-      state)))
+      (#{"take" "t" "T"} command)
+      (let [item-key (keyword (first arguments))
+            item (get-in state [:place-state place-key :items item-key])]
+        (if (not item)
+          (do
+            (println "there is no" (name item-key) "here.")
+            state)
+          (let [state (update-in state [:place-state place-key :items] dissoc item-key)]
+            (println "you took" (name item-key))
+            (assoc-in state [:inventory item-key] item))))
+
+      :else
+      (do 
+        (println command "is not a valid choice")
+        state))))
 
 (def example-game
   {:initial-state
@@ -111,10 +137,14 @@
       {:action
        (fn [state]
          (if (get-in state [:place-state :red :heart :squished])
-           (do
-             (println "the once beating heart is brutally squished")
-             (println "you see something glinting in the mush")
-             (assoc-in state [:place-state :red :heart :glint] true))
+           (if (get-in state [:place-state :red :heart :key])
+             (do
+               (println "the squished up heart has been mashed around severely")
+               state)
+             (do
+               (println "the once beating heart is brutally squished")
+               (println "you see something glinting in the mush")
+               (assoc-in state [:place-state :red :heart :glint] true)))
            (do
              (println "the heart is huge and grotesque and pumping obscenely")
              (assoc-in state [:place-state :red :heart :looked] true))))}
@@ -126,6 +156,17 @@
        (fn [state]
          (println "you lift the case and release poison gas")
          (assoc state :dead true))}
+      :glint
+      {:condition
+       (fn [state]
+         (and
+          (get-in state [:place-state :red :heart :glint])
+          (not (get-in state [:place-state :red :heart :key]))))
+       :action
+       (fn [state]
+         (println "you root around and find a small golden key")
+         (let [state (assoc-in state [:inventory :gold-key] {})]
+           (assoc-in state [:place-state :red :heart :key] true)))}
       :squish
       {:condition
        (fn [state]
@@ -185,9 +226,13 @@
         all-choices (get place :choices) 
         choices (player-choices all-choices state)]
     (if (not= place-key previous-place)
-      (doseq [line ((get place :description) state)]
-        (println line)))
-    (println "your choices are:" (string/join ", " (map name (keys choices))))
+      (do
+        (doseq [line ((get place :description) state)]
+          (println line))
+        (let [items (get-in state [:place-state place-key :items])]
+          (if (not (empty? items))
+            (println "the items here are:" (string/join ", " (map name (keys items)))))))
+      (println "your choices are:" (string/join ", " (map name (keys choices)))))
     (let [choice (read-line)
           action (get choices (keyword choice))]
       (if action
