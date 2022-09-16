@@ -181,9 +181,15 @@
     :green
     {:description
      (fn [state]
-       ["the room is green"])
+       ["the room is a long hallway of glowing green"
+        "at the end of the hall is a jet black doorway"])
      :choices
-     {}}
+     {:door
+      {:action
+       (fn [state]
+         (println "you walk along the green hallway but the door doesn't get any closer")
+         (println "you turn around but find that you haven't moved at all")
+         state)}}}
 
     :blue
     {:description
@@ -231,8 +237,8 @@
           (println line))
         (let [items (get-in state [:place-state place-key :items])]
           (if (not (empty? items))
-            (println "the items here are:" (string/join ", " (map name (keys items)))))))
-      (println "your choices are:" (string/join ", " (map name (keys choices)))))
+            (println "the items here are:" (string/join ", " (map name (keys items))))))))
+    (println "your choices are:" (string/join ", " (map name (keys choices))))
     (let [choice (read-line)
           action (get choices (keyword choice))]
       (if action
