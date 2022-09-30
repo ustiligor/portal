@@ -187,9 +187,23 @@
      {:door
       {:action
        (fn [state]
-         (println "you walk along the green hallway but the door doesn't get any closer")
-         (println "you turn around but find that you haven't moved at all")
-         state)}}}
+         (let [n (or (get-in state [:place-state :green :door])
+                     0)]
+           (if (< n 3)
+             (do 
+               (println "you walk along the green hallway but the door doesn't get any closer")
+               (println "you turn around but find that you haven't moved at all")
+               (assoc-in state [:place-state :green :door] (+ n 1)))
+             (do
+               (println "you fall through the floor!")
+               (assoc state :place :undergreen)))))}}}
+
+    :undergreen
+    {:description
+     (fn [state]
+       ["you are in a dark green hallway the dark version of the one you just left."])
+     :choices
+     {}}
 
     :blue
     {:description
